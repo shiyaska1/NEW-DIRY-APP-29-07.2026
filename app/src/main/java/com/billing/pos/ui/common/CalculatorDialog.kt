@@ -17,6 +17,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Backspace
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
@@ -26,6 +27,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -67,6 +69,13 @@ fun CalculatorDialog(
     val focus = remember { FocusRequester() }
     val scroll = rememberScrollState()
     val total = entries.sum()
+
+    // UI state for confirmations and operator dialogs
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+    var lastToDelete by remember { mutableStateOf(0.0) }
+    var showOpDialog by remember { mutableStateOf<String?>(null) } // "*" or "/"
+    var opValue by remember { mutableStateOf("") }
+    var errorMsg by remember { mutableStateOf("") }
 
     fun add(sign: Int) {
         val v = input.toDoubleOrNull()
@@ -183,10 +192,89 @@ fun CalculatorDialog(
                     modifier = Modifier.weight(1f).focusRequester(focus)
                 )
                 IconButton(onClick = {
-                    if (input.isNotEmpty()) input = "" else if (entries.isNotEmpty()) entries.removeAt(entries.lastIndex)
+                    if (input.isNotEmpty()) input = "" else if (entries.isNotEmpty()) {
+                        // Ask for confirmation before deleting the last tape entry
+                        lastToDelete = entries.last()
+                        showDeleteConfirm = true
+                    }
                 }) { Icon(Icons.Filled.Backspace, contentDescription = "Remove last") }
                 OutlinedButton(onClick = { add(-1) }) { Text("−", fontSize = 24.sp, fontWeight = FontWeight.Bold) }
+                OutlinedButton(onClick = { showOpDialog = "*" }) { Text("*", fontSize = 20.sp, fontWeight = FontWeight.Bold) }
+                OutlinedButton(onClick = { showOpDialog = "/" }) { Text("/", fontSize = 20.sp, fontWeight = FontWeight.Bold) }
                 Button(onClick = { add(1) }) { Text("+", fontSize = 24.sp, fontWeight = FontWeight.Bold) }
+            }
+
+            // Confirm delete dialog
+            if (showDeleteConfirm) {
+                AlertDialog(
+                    onDismissRequest = { showDeleteConfirm = false },
+                    title = { Text("Delete last entry") },
+                    text = { Text("Are you sure you want to delete the last entry of ${Format.money(lastToDelete)}?") },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            if (entries.isNotEmpty()) entries.removeAt(entries.lastIndex)
+                            showDeleteConfirm = false
+                            focus.requestFocus()
+                        }) { Text("Delete") }
+                    },
+                    dismissButton = { TextButton(onClick = { showDeleteConfirm = false }) { Text("Cancel") } }
+                )
+            }
+
+            // Operator dialog for * and /
+            if (showOpDialog != null) {
+                AlertDialog(
+                    onDismissRequest = { showOpDialog = null; opValue = "" },
+                    title = { Text(if (showOpDialog == "*") "Multiply" else "Divide") },
+                    text = {
+                        Column {
+                            Text(if (showOpDialog == "*") "Enter a number to multiply the current amount by." else "Enter a number to divide the current amount by.")
+                            OutlinedTextField(
+                                value = opValue,
+                                onValueChange = { opValue = it.filter { c -> c.isDigit() || c == '.' } },
+                                label = { Text("Number") },
+                                singleLine = true
+                            )
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            val base = input.toDoubleOrNull()
+                            val operand = opValue.toDoubleOrNull()
+                            when {
+                                base == null -> {
+                                    errorMsg = "Enter a valid amount in the Amount field first"
+                                }
+                                operand == null -> {
+                                    errorMsg = "Enter a valid number to ${if (showOpDialog == "*") "multiply" else "divide"} by"
+                                }
+                                showOpDialog == "/" && operand == 0.0 -> {
+                                    errorMsg = "Cannot divide by zero"
+                                }
+                                else -> {
+                                    val result = if (showOpDialog == "*") base * (operand!!) else base / (operand!!)
+                                    // Display result in the amount field so user can press + or - next
+                                    // Keep reasonable decimal precision
+                                    input = result.toString()
+                                    opValue = ""
+                                    showOpDialog = null
+                                    focus.requestFocus()
+                                }
+                            }
+                        }) { Text("OK") }
+                    },
+                    dismissButton = { TextButton(onClick = { showOpDialog = null; opValue = "" }) { Text("Cancel") } }
+                )
+            }
+
+            // Error alert
+            if (errorMsg.isNotBlank()) {
+                AlertDialog(
+                    onDismissRequest = { errorMsg = "" },
+                    title = { Text("Error") },
+                    text = { Text(errorMsg) },
+                    confirmButton = { TextButton(onClick = { errorMsg = "" }) { Text("OK") } }
+                )
             }
         }
     }
