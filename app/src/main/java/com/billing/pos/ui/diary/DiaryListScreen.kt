@@ -271,34 +271,42 @@ fun DiaryListScreen(
             val custFilter by vm.customerFilter.collectAsStateSafe()
             val custTypeFilter by vm.customerTypeFilter.collectAsStateSafe()
             Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                // Type to search customers — five suggestions at a time; blank = all.
+                // Same searchable pattern as the New Bill customer field: blank until
+                // focused, full list on focus, narrows as you type, pick to select.
                 var custMenu by remember { mutableStateOf(false) }
                 var custQuery by remember { mutableStateOf("") }
+                val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+                androidx.compose.runtime.LaunchedEffect(custFilter) { if (!custMenu) custQuery = custFilter }
+                val custMatches = remember(custQuery, customers) {
+                    if (custQuery.isBlank()) customers
+                    else customers.filter { it.name.contains(custQuery, true) || it.phone.contains(custQuery) }
+                }
                 androidx.compose.material3.ExposedDropdownMenuBox(
                     expanded = custMenu, onExpandedChange = { custMenu = it }, modifier = Modifier.weight(1f)
                 ) {
                     OutlinedTextField(
-                        // Blank by default (or the picked name) — never pre-filled with a
-                        // default customer. Typing narrows the suggestion list below.
-                        value = if (custMenu) custQuery else custFilter,
+                        value = custQuery,
                         onValueChange = { custQuery = it; custMenu = true },
-                        singleLine = true,
+                        label = { Text("Customer") },
                         placeholder = { Text("All customers") },
+                        singleLine = true,
                         trailingIcon = { androidx.compose.material3.ExposedDropdownMenuDefaults.TrailingIcon(custMenu) },
-                        modifier = Modifier.menuAnchor().fillMaxWidth()
-                            .onFocusChanged { fs -> if (fs.isFocused) { custQuery = ""; custMenu = true } }
-                    )
-                    // Blank query -> no suggestions until the user types (pick "All customers"
-                    // from the menu, or start typing a name/phone to search).
-                    val custMatches = if (custQuery.isBlank()) emptyList()
-                        else customers
-                            .filter { it.name.contains(custQuery, true) || it.phone.contains(custQuery) }
-                            .take(5)
-                    ExposedDropdownMenu(expanded = custMenu, onDismissRequest = { custMenu = false }) {
-                        androidx.compose.material3.DropdownMenuItem(text = { Text("All customers") }, onClick = { vm.customerFilter.value = ""; custMenu = false })
-                        custMatches.forEach { c ->
-                            androidx.compose.material3.DropdownMenuItem(text = { Text(c.name) }, onClick = { vm.customerFilter.value = c.name; custMenu = false })
+                        modifier = Modifier.menuAnchor().fillMaxWidth().onFocusChanged { fs ->
+                            if (fs.isFocused) { custQuery = ""; custMenu = true } else custQuery = custFilter
                         }
+                    )
+                    ExposedDropdownMenu(expanded = custMenu, onDismissRequest = { custMenu = false }) {
+                        androidx.compose.material3.DropdownMenuItem(
+                            text = { Text("All customers") },
+                            onClick = { vm.customerFilter.value = ""; custQuery = ""; custMenu = false; focusManager.clearFocus() }
+                        )
+                        custMatches.forEach { c ->
+                            androidx.compose.material3.DropdownMenuItem(
+                                text = { Text(c.name + if (c.isDefault) "  (default)" else "") },
+                                onClick = { vm.customerFilter.value = c.name; custQuery = c.name; custMenu = false; focusManager.clearFocus() }
+                            )
+                        }
+                        if (custMatches.isEmpty()) DropdownMenuItem(text = { Text("No match") }, onClick = { custMenu = false })
                     }
                 }
                 var ctMenu by remember { mutableStateOf(false) }
