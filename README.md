@@ -1,5 +1,6 @@
 # POS Billing (Native Android, offline)
 
+
 A fully **native Kotlin + Jetpack Compose** billing/POS app that runs **100% offline**.
 All data is stored on-device in a Room (SQLite) database — no internet required.
 
