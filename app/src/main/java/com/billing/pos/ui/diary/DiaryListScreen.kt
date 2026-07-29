@@ -306,7 +306,7 @@ fun DiaryListScreen(
                                 onClick = { vm.customerFilter.value = c.name; custQuery = c.name; custMenu = false; focusManager.clearFocus() }
                             )
                         }
-                        if (custMatches.isEmpty()) DropdownMenuItem(text = { Text("No match") }, onClick = { custMenu = false })
+                        if (custMatches.isEmpty()) androidx.compose.material3.DropdownMenuItem(text = { Text("No match") }, onClick = { custMenu = false })
                     }
                 }
                 var ctMenu by remember { mutableStateOf(false) }
