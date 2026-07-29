@@ -90,7 +90,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.billing.pos.auth.Session
 
-private data class Tile(val label: String, val icon: ImageVector, val onClick: () -> Unit, val section: String = "Transactions")
+private data class Tile(
+    val label: String,
+    val icon: ImageVector,
+    val onClick: () -> Unit,
+    val section: String = "Transactions",
+    val subgroup: String? = null // used only when section == "Accounts" to group inside Accounts
+)
 
 /** In Personal mode the dashboard shows only these — the everyday, non-shop tools. */
 private val PERSONAL_TILES = setOf(
@@ -125,7 +131,8 @@ private val COACHING_TILES = setOf(
     "Settings", "Backup"
 ) + SERVICE_TILES
 
-private val SECTION_ORDER = listOf("Transactions", "Masters", "Accounts", "Reports")
+// Put Accounts first as requested
+private val SECTION_ORDER = listOf("Accounts", "Transactions", "Masters", "Reports")
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -265,10 +272,14 @@ fun DashboardScreen(
         }
 
         // ---- Masters ----
-        add(Tile("Customers", Icons.Filled.People, onCustomers, "Masters"))
+        // Move account-related masters under Accounts -> Masters subgroup
         add(Tile("Items", Icons.Filled.Category, onItems, "Masters"))
-        add(Tile("Suppliers", Icons.Filled.LocalShipping, onSuppliers, "Masters"))
+        add(Tile("My Diary", Icons.Filled.MenuBook, onDiary, "Masters"))
+        if (Session.canManageUsers) add(Tile("Users", Icons.Filled.ManageAccounts, onUsers, "Masters"))
+        if (Session.canManageUsers) add(Tile("Settings", Icons.Filled.Settings, onSettings, "Masters"))
+        if (Session.canExport || Session.canImport) add(Tile("Backup", Icons.Filled.Backup, onBackup, "Masters"))
         if (isLab) {
+            // patients & lab tests are masters but treat them normally
             add(Tile("Patients", Icons.Filled.People, onPatients, "Masters"))
             add(Tile("Lab Tests", Icons.Filled.Biotech, onLabTests, "Masters"))
         }
@@ -276,27 +287,35 @@ fun DashboardScreen(
             add(Tile("Send SMS", Icons.AutoMirrored.Filled.Send, onSendSms, "Transactions"))
             add(Tile("Bulk SMS", Icons.Filled.Campaign, onBulkSms, "Transactions"))
             add(Tile("Attendance", Icons.Filled.HowToReg, onAttendance, "Transactions"))
-            add(Tile("Contacts", Icons.Filled.Contacts, onContacts, "Masters"))
+            // Contacts moved under Accounts -> Masters
             add(Tile("SMS Templates", Icons.Filled.Description, onSmsTemplates, "Masters"))
             add(Tile("SMS Settings", Icons.Filled.Settings, onSmsSettings, "Masters"))
             add(Tile("SMS Report", Icons.Filled.Assessment, onSmsReport, "Reports"))
         }
-        add(Tile("My Diary", Icons.Filled.MenuBook, onDiary, "Masters"))
-        if (Session.canManageUsers) add(Tile("Users", Icons.Filled.ManageAccounts, onUsers, "Masters"))
-        if (Session.canManageUsers) add(Tile("Settings", Icons.Filled.Settings, onSettings, "Masters"))
-        if (Session.canExport || Session.canImport) add(Tile("Backup", Icons.Filled.Backup, onBackup, "Masters"))
 
         // ---- Accounts ----
-        if (Session.canViewReceipt) add(Tile("Receipts", Icons.Filled.Payments, onReceipts, "Accounts"))
-        if (Session.canViewPayment) add(Tile("Payments", Icons.Filled.MoneyOff, onExpenses, "Accounts"))
-        if (Session.canViewCashbook) add(Tile("Cash Book", Icons.Filled.AccountBalanceWallet, onCashbook, "Accounts"))
-        if (Session.canViewInvoice) add(Tile("Outstanding", Icons.Filled.AccountBalance, onOutstanding, "Accounts"))
-        if (Session.canManageUsers) add(Tile("Accounts", Icons.Filled.AccountTree, onAccounts, "Accounts"))
-        if (Session.canManageUsers) add(Tile("Journal", Icons.Filled.Book, onJournal, "Accounts"))
-        if (Session.canViewCashbook) add(Tile("Ledger", Icons.Filled.Summarize, onLedger, "Accounts"))
-        if (Session.canViewCashbook) add(Tile("Receipt & Payment", Icons.Filled.Summarize, onRpReport, "Accounts"))
+        // Transactions subgroup
+        if (Session.canViewReceipt) add(Tile("Receipts", Icons.Filled.Payments, onReceipts, "Accounts", "Transactions"))
+        if (Session.canViewPayment) add(Tile("Payments", Icons.Filled.MoneyOff, onExpenses, "Accounts", "Transactions"))
+        if (Session.canViewCashbook) add(Tile("Cash Book", Icons.Filled.AccountBalanceWallet, onCashbook, "Accounts", "Transactions"))
+        if (Session.canViewInvoice) add(Tile("Outstanding", Icons.Filled.AccountBalance, onOutstanding, "Accounts", "Transactions"))
+        if (Session.canManageUsers) add(Tile("Journal", Icons.Filled.Book, onJournal, "Accounts", "Transactions"))
 
-        // ---- Reports ----
+        // Masters subgroup (chart/heads/parties)
+        if (Session.canManageUsers) add(Tile("Accounts", Icons.Filled.AccountTree, onAccounts, "Accounts", "Masters"))
+        // Move customers/suppliers/contacts into Accounts->Masters
+        add(Tile("Customers", Icons.Filled.People, onCustomers, "Accounts", "Masters"))
+        add(Tile("Suppliers", Icons.Filled.LocalShipping, onSuppliers, "Accounts", "Masters"))
+        if (isBulkSms) add(Tile("Contacts", Icons.Filled.Contacts, onContacts, "Accounts", "Masters"))
+
+        // Reports subgroup
+        if (Session.canViewCashbook) add(Tile("Ledger", Icons.Filled.Summarize, onLedger, "Accounts", "Reports"))
+        if (Session.canViewCashbook) add(Tile("Receipt & Payment", Icons.Filled.Summarize, onRpReport, "Accounts", "Reports"))
+        if (Session.canManageUsers) add(Tile("Trial Balance", Icons.Filled.Balance, onTrialBalance, "Accounts", "Reports"))
+        if (Session.canManageUsers) add(Tile("Profit & Loss", Icons.Filled.TrendingUp, onProfitLoss, "Accounts", "Reports"))
+        if (Session.canManageUsers) add(Tile("Balance Sheet", Icons.Filled.AccountBalance, onBalanceSheet, "Accounts", "Reports"))
+
+        // ---- Reports (general) ----
         if (Session.canViewInvoice) add(Tile("Sales Report", Icons.Filled.Assessment, onReports, "Reports"))
         if (Session.canViewInvoice) add(Tile("Sales Profit", Icons.Filled.TrendingUp, onSalesProfit, "Reports"))
         if (Session.canViewInvoice) add(Tile("Sales (item-wise)", Icons.Filled.Inventory2, onSalesItemReport, "Reports"))
@@ -305,11 +324,6 @@ fun DashboardScreen(
         add(Tile("Item Movement", Icons.Filled.SwapVert, onItemMovement, "Reports"))
         add(Tile("Price Search", Icons.Filled.PriceCheck, onPriceSearch, "Reports"))
         if (Session.canViewInvoice) add(Tile("VAT Report", Icons.Filled.Description, onVatReport, "Reports"))
-        if (Session.canManageUsers) {
-            add(Tile("Trial Balance", Icons.Filled.Balance, onTrialBalance, "Reports"))
-            add(Tile("Profit & Loss", Icons.Filled.TrendingUp, onProfitLoss, "Reports"))
-            add(Tile("Balance Sheet", Icons.Filled.AccountBalance, onBalanceSheet, "Reports"))
-        }
         if (isRental) {
             add(Tile("Hire Item Report", Icons.Filled.Inventory2, onHireItemReport, "Reports"))
             add(Tile("Hire Expiry", Icons.Filled.EventBusy, onHireExpiryReport, "Reports"))
@@ -447,11 +461,7 @@ fun DashboardScreen(
                         }
                     }
 
-                    if (!isPersonal) {
-                        item(span = { GridItemSpan(maxLineSpan) }) {
-                            DashboardCharts(onOpenDetail = onOpenChart)
-                        }
-                    }
+                    // Remove the early charts so sections appear higher — charts will be rendered after sections
 
                     SECTION_ORDER.forEach { section ->
                         val secTiles = visibleTiles.filter { it.section == section }
@@ -484,8 +494,40 @@ fun DashboardScreen(
                                 }
                             }
                             if (open) {
-                                items(secTiles) { tile -> TileCard(tile) { record(tile.label); tile.onClick() } }
+                                if (section == "Accounts") {
+                                    // Inside Accounts show subgroups: Transactions, Masters, Reports
+                                    val subOrder = listOf("Transactions", "Masters", "Reports")
+                                    subOrder.forEach { sub ->
+                                        val subTiles = secTiles.filter { it.subgroup == sub }
+                                        if (subTiles.isNotEmpty()) {
+                                            item(span = { GridItemSpan(maxLineSpan) }) {
+                                                Column(Modifier.padding(vertical = 4.dp)) {
+                                                    Text(
+                                                        sub,
+                                                        style = MaterialTheme.typography.labelMedium,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = MaterialTheme.colorScheme.onBackground,
+                                                        modifier = Modifier.padding(start = 4.dp, bottom = 6.dp)
+                                                    )
+                                                }
+                                            }
+                                            items(subTiles) { tile -> TileCard(tile) { record(tile.label); tile.onClick() } }
+                                        }
+                                    }
+                                    // Any account tiles without subgroup
+                                    val other = secTiles.filter { it.subgroup == null }
+                                    if (other.isNotEmpty()) items(other) { tile -> TileCard(tile) { record(tile.label); tile.onClick() } }
+                                } else {
+                                    items(secTiles) { tile -> TileCard(tile) { record(tile.label); tile.onClick() } }
+                                }
                             }
+                        }
+                    }
+
+                    // Render charts after sections so links move a bit upwards as requested
+                    if (!isPersonal) {
+                        item(span = { GridItemSpan(maxLineSpan) }) {
+                            DashboardCharts(onOpenDetail = onOpenChart)
                         }
                     }
                 }
